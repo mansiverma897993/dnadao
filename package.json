@@ -5,6 +5,7 @@
   "scripts": {
     "test": "anchor test",
     "build:program": "anchor build",
+    "build": "npm --prefix app run build",
     "app:dev": "npm --prefix app run dev",
     "app:build": "npm --prefix app run build",
     "app:lint": "npm --prefix app run lint"
