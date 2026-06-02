@@ -650,6 +650,32 @@ export function App() {
 
   return (
     <div className="dna-app-container">
+      {/* Animated fluid gooey mesh background */}
+      <div className="animated-bg-mesh">
+        <div className="blobs-container">
+          <div className="blob blob-1"></div>
+          <div className="blob blob-2"></div>
+          <div className="blob blob-3"></div>
+          <div className="blob blob-4"></div>
+        </div>
+        
+        {/* SVG Gooey Filter definition */}
+        <svg style={{ display: "none" }}>
+          <defs>
+            <filter id="gooey">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="55" result="blur" />
+              <feColorMatrix 
+                in="blur" 
+                mode="matrix" 
+                values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 95 -30" 
+                result="goo" 
+              />
+              <feBlend in="SourceGraphic" in2="goo" />
+            </filter>
+          </defs>
+        </svg>
+      </div>
+      
       {/* Sidebar Navigation */}
       <aside className="dna-sidebar">
         <div className="sidebar-logo">
