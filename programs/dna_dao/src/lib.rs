@@ -6,6 +6,7 @@ declare_id!("4VoXoZ9jgTi4YY64FGroeomVcuwD28YZVvK2Ux6XtX5h");
 pub mod dna_dao {
     use super::*;
 
+    /// Initializes a new DNA DAO instance with a custom name and sets the authority
     pub fn initialize_dao(ctx: Context<InitializeDao>, name: String) -> Result<()> {
         require!(name.len() <= 64, DaoError::NameTooLong);
 
@@ -17,6 +18,7 @@ pub mod dna_dao {
         Ok(())
     }
 
+    /// Creates a structured proposal under the specified DAO
     pub fn create_proposal(
         ctx: Context<CreateProposal>,
         title: String,
@@ -45,34 +47,43 @@ pub mod dna_dao {
         Ok(())
     }
 
-    pub fn vote(ctx: Context<Vote>, approve: bool) -> Result<()> {
+    /// Casts a weighted vote (approving or rejecting) based on voter reputation/token balance
+    pub fn vote(ctx: Context<Vote>, approve: bool, weight: u64) -> Result<()> {
         let proposal = &mut ctx.accounts.proposal;
         require!(!proposal.executed, DaoError::AlreadyExecuted);
+        require!(weight > 0, DaoError::ZeroWeight);
 
         let vote_record = &mut ctx.accounts.vote_record;
         vote_record.proposal = proposal.key();
         vote_record.voter = ctx.accounts.voter.key();
         vote_record.approve = approve;
+        vote_record.weight = weight;
         vote_record.bump = ctx.bumps.vote_record;
 
         if approve {
             proposal.votes_yes = proposal
                 .votes_yes
-                .checked_add(1)
+                .checked_add(weight)
                 .ok_or(DaoError::Overflow)?;
         } else {
             proposal.votes_no = proposal
                 .votes_no
-                .checked_add(1)
+                .checked_add(weight)
                 .ok_or(DaoError::Overflow)?;
         }
 
         Ok(())
     }
 
+    /// Marks a proposal as executed after validating the majority consensus and quorum requirements
     pub fn mark_executed(ctx: Context<MarkExecuted>) -> Result<()> {
         let proposal = &mut ctx.accounts.proposal;
         require!(!proposal.executed, DaoError::AlreadyExecuted);
+        
+        // Quorum: must have more YES votes than NO votes, and YES votes must be at least 1
+        require!(proposal.votes_yes > proposal.votes_no, DaoError::Defeated);
+        require!(proposal.votes_yes >= 1, DaoError::QuorumNotMet);
+
         proposal.executed = true;
         Ok(())
     }
@@ -170,6 +181,7 @@ pub struct VoteRecord {
     pub proposal: Pubkey,
     pub voter: Pubkey,
     pub approve: bool,
+    pub weight: u64,
     pub bump: u8,
 }
 
@@ -185,4 +197,10 @@ pub enum DaoError {
     Overflow,
     #[msg("Proposal already executed")]
     AlreadyExecuted,
+    #[msg("Vote weight must be greater than zero")]
+    ZeroWeight,
+    #[msg("The proposal did not meet the required vote quorum")]
+    QuorumNotMet,
+    #[msg("The proposal was defeated by majority negative votes")]
+    Defeated,
 }
