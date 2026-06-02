@@ -8,9 +8,8 @@ import "./styles.css";
 
 (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer = Buffer;
 (globalThis as typeof globalThis & { global?: typeof globalThis }).global = globalThis;
-(globalThis as typeof globalThis & { process?: { env: Record<string, string> } }).process ??= {
-  env: {}
-};
+(globalThis as any).process = { env: {} };
+
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
