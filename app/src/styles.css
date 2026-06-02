@@ -1,0 +1,125 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #eaffea;
+  background: radial-gradient(circle at 20% 20%, #25d16b 0%, #0b1511 45%, #050806 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+  display: grid;
+  gap: 16px;
+  position: relative;
+}
+
+.glow {
+  position: absolute;
+  inset: -120px auto auto -80px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgb(136 255 176 / 70%), rgb(136 255 176 / 0%));
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.card {
+  border: 1px solid rgb(152 255 187 / 45%);
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 4%));
+  box-shadow: 0 8px 30px rgb(18 107 49 / 25%);
+  backdrop-filter: blur(6px);
+  padding: 18px;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 8px;
+}
+
+p {
+  margin: 0;
+}
+
+input,
+textarea {
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 10px;
+  border: 1px solid rgb(189 255 209 / 35%);
+  background: rgb(255 255 255 / 10%);
+  color: #f2fff5;
+  padding: 11px;
+}
+
+textarea {
+  min-height: 110px;
+}
+
+button {
+  border: 1px solid #7bf3a9;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #4ced8c, #24b965);
+  color: #04230f;
+  font-weight: 700;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.proposals {
+  margin-top: 10px;
+  display: grid;
+  gap: 12px;
+}
+
+.proposal {
+  padding: 12px;
+  border: 1px solid rgb(177 255 201 / 35%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.votes {
+  margin: 10px 0;
+  display: flex;
+  gap: 14px;
+  font-weight: 700;
+}
+
+.muted {
+  color: #caf7d4;
+}
+
+.status {
+  margin-top: 14px;
+  color: #d8ffe0;
+  font-size: 0.95rem;
+}

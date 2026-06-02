@@ -1,0 +1,12 @@
+node_modules
+target
+.anchor
+.DS_Store
+dist
+coverage
+.idea
+.vscode
+**/*.log
+app/node_modules
+app/dist
+test-ledger
