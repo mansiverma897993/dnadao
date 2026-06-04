@@ -21,23 +21,13 @@ The following diagram illustrates the complete end-to-end multi-tier architectur
 
 ```mermaid
 graph TD
-    %% Styling and Custom Colors matching the Architecture Diagram
-    classDef frontend fill:#1a3c38,stroke:#3bbca7,stroke-width:2px,color:#e6f4f1;
-    classDef ai fill:#3d2230,stroke:#a64d79,stroke-width:2px,color:#f8ebf2;
-    classDef backend fill:#2c2c2c,stroke:#8e8e8e,stroke-width:2px,color:#f0f0f0;
-    classDef program fill:#42220b,stroke:#d56a12,stroke-width:2px,color:#faefe6;
-    classDef chain fill:#3f3713,stroke:#c4b43b,stroke-width:2px,color:#faf9e6;
-    classDef ext fill:#1b2530,stroke:#5c768d,stroke-width:2px,color:#edf2f7;
-
     %% Frontend Layer
-    subgraph FE ["Frontend"]
-        FE_Stack["Next.js + TypeScript + Tailwind CSS"]
-        Wallets["Phantom / Solflare Wallet Adapters"]
-        FE_Stack --> Wallets
+    subgraph Frontend
+        FE_Stack["Next.js + TypeScript + Tailwind CSS"] --> Wallets["Phantom / Solflare Wallet Adapters"]
     end
 
     %% AI Governance Layer
-    subgraph AI ["AI Governance Layer"]
+    subgraph AIGov ["AI Governance Layer"]
         PropGen["Proposal Generator"]
         DNAEngine["Governance DNA Engine"]
         AlignAI["Community Alignment AI"]
@@ -46,14 +36,12 @@ graph TD
     end
 
     %% Backend Layer
-    subgraph BE ["Backend"]
-        API["Node.js API Gateway"]
-        DB["Prisma ORM + PostgreSQL"]
-        API <--> DB
+    subgraph Backend
+        API["Node.js API Gateway"] <--> DB["Prisma ORM + PostgreSQL"]
     end
 
     %% Solana Programs Layer
-    subgraph SP ["Solana Programs"]
+    subgraph SolanaPrograms ["Solana Programs"]
         ProgDAO["DAO Program"]
         ProgProp["Proposal Program"]
         ProgVote["Voting Program"]
@@ -62,26 +50,34 @@ graph TD
     end
 
     %% Blockchain Layer
-    subgraph BC ["Blockchain"]
+    subgraph Blockchain
         SolanaBC["Solana Blockchain"]
     end
 
     %% External Services Layer
-    subgraph EX ["External Services"]
+    subgraph ExternalServices ["External Services"]
         Helius["Helius RPC & Indexer"]
         Arweave["Arweave Permanent Storage"]
     end
 
-    %% Flow/Connections
-    Wallets -->|User Auth & Transaction Signing| AI
-    
+    %% Connections
+    Wallets --> PropGen
+    Wallets --> DNAEngine
+    Wallets --> AlignAI
+    Wallets --> DebateSum
+    Wallets --> ImpactSim
+
     PropGen --> API
     DNAEngine --> API
     AlignAI --> API
     DebateSum --> API
     ImpactSim --> API
 
-    API -->|Instruction Serialization & State Caching| SP
+    API --> ProgDAO
+    API --> ProgProp
+    API --> ProgVote
+    API --> ProgRep
+    API --> ProgNFT
 
     ProgDAO --> SolanaBC
     ProgProp --> SolanaBC
@@ -89,16 +85,8 @@ graph TD
     ProgRep --> SolanaBC
     ProgNFT --> SolanaBC
 
-    SolanaBC -->|RPC Queries & Webhooks| Helius
-    SolanaBC -->|Metadata & Document Pinning| Arweave
-
-    %% Apply Styles
-    class FE_Stack,Wallets FE;
-    class PropGen,DNAEngine,AlignAI,DebateSum,ImpactSim AI;
-    class API,DB BE;
-    class ProgDAO,ProgProp,ProgVote,ProgRep,ProgNFT SP;
-    class SolanaBC BC;
-    class Helius,Arweave EX;
+    SolanaBC --> Helius
+    SolanaBC --> Arweave
 ```
 
 ### Architectural Component Breakdown:
