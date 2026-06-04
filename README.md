@@ -15,6 +15,110 @@ DNA DAO implements a state-of-the-art **Ivory-Emerald Glassmorphic UI** featurin
 
 ---
 
+## 🏛️ AI-Powered Solana Governance Architecture
+
+The following diagram illustrates the complete end-to-end multi-tier architecture of DNA DAO, showing the flow from client wallets through our AI governance suite, the backend sync layer, on-chain Solana programs, and decentralized storage providers.
+
+```mermaid
+graph TD
+    %% Styling and Custom Colors matching the Architecture Diagram
+    classDef frontend fill:#1a3c38,stroke:#3bbca7,stroke-width:2px,color:#e6f4f1;
+    classDef ai fill:#3d2230,stroke:#a64d79,stroke-width:2px,color:#f8ebf2;
+    classDef backend fill:#2c2c2c,stroke:#8e8e8e,stroke-width:2px,color:#f0f0f0;
+    classDef program fill:#42220b,stroke:#d56a12,stroke-width:2px,color:#faefe6;
+    classDef chain fill:#3f3713,stroke:#c4b43b,stroke-width:2px,color:#faf9e6;
+    classDef ext fill:#1b2530,stroke:#5c768d,stroke-width:2px,color:#edf2f7;
+
+    %% Frontend Layer
+    subgraph FE ["Frontend"]
+        FE_Stack["Next.js + TypeScript + Tailwind CSS"]
+        Wallets["Phantom / Solflare Wallet Adapters"]
+        FE_Stack --> Wallets
+    end
+
+    %% AI Governance Layer
+    subgraph AI ["AI Governance Layer"]
+        PropGen["Proposal Generator"]
+        DNAEngine["Governance DNA Engine"]
+        AlignAI["Community Alignment AI"]
+        DebateSum["Debate Summarizer"]
+        ImpactSim["Impact Simulator"]
+    end
+
+    %% Backend Layer
+    subgraph BE ["Backend"]
+        API["Node.js API Gateway"]
+        DB["Prisma ORM + PostgreSQL"]
+        API <--> DB
+    end
+
+    %% Solana Programs Layer
+    subgraph SP ["Solana Programs"]
+        ProgDAO["DAO Program"]
+        ProgProp["Proposal Program"]
+        ProgVote["Voting Program"]
+        ProgRep["Reputation Program"]
+        ProgNFT["DNA NFT Program"]
+    end
+
+    %% Blockchain Layer
+    subgraph BC ["Blockchain"]
+        SolanaBC["Solana Blockchain"]
+    end
+
+    %% External Services Layer
+    subgraph EX ["External Services"]
+        Helius["Helius RPC & Indexer"]
+        Arweave["Arweave Permanent Storage"]
+    end
+
+    %% Flow/Connections
+    Wallets -->|User Auth & Transaction Signing| AI
+    
+    PropGen --> API
+    DNAEngine --> API
+    AlignAI --> API
+    DebateSum --> API
+    ImpactSim --> API
+
+    API -->|Instruction Serialization & State Caching| SP
+
+    ProgDAO --> SolanaBC
+    ProgProp --> SolanaBC
+    ProgVote --> SolanaBC
+    ProgRep --> SolanaBC
+    ProgNFT --> SolanaBC
+
+    SolanaBC -->|RPC Queries & Webhooks| Helius
+    SolanaBC -->|Metadata & Document Pinning| Arweave
+
+    %% Apply Styles
+    class FE_Stack,Wallets FE;
+    class PropGen,DNAEngine,AlignAI,DebateSum,ImpactSim AI;
+    class API,DB BE;
+    class ProgDAO,ProgProp,ProgVote,ProgRep,ProgNFT SP;
+    class SolanaBC BC;
+    class Helius,Arweave EX;
+```
+
+### Architectural Component Breakdown:
+
+1. **Frontend**: The user interface is built using a modern React & Next.js stack with Tailwind CSS styling and custom glassmorphism. It uses Solana wallet adapters (Phantom, Solflare, etc.) to authenticate users and sign on-chain transactions.
+2. **AI Governance Layer**: A suite of specialized AI modules:
+   * **Proposal Generator**: Creates structured, professional proposals including problem statements, solutions, dynamic risk scores, budget structures, and execution timelines.
+   * **Governance DNA Engine**: Indexes community members and visualizes their quantitative traits (Innovation, Risk Appetite, Community Focus, Financial Vision).
+   * **Community Alignment AI**: Analyzes community sentiment and alignment.
+   * **Debate Summarizer**: Condenses conversational forum threads to output consensus scores and argument breakdowns.
+   * **Impact Simulator**: Models the long-term impact on the treasury balance, network growth, and community alignment.
+3. **Backend API (Node.js)**: Orchestrates requests between the AI layer, database state caching (Prisma/PostgreSQL), and Solana network nodes.
+4. **Solana Programs**: Custom on-chain Rust smart contracts using the Anchor framework that manage decentralized identity (DNA NFTs), DAO metadata, proposal lifecycle state, vote weighing, and member reputation.
+5. **Solana Blockchain**: The decentralized state ledger processing high-speed, secure consensus transactions.
+6. **External Services**:
+   * **Helius**: Delivers high-performance RPC connections, transaction indexing, and webhook services.
+   * **Arweave**: Provides decentralized, permanent storage for rich-text proposals, profile data, and media assets.
+
+---
+
 ## 📐 Platform Architecture & Modules
 
 The platform is designed around a highly adjustable, modular architecture called the **DNA Engine**:

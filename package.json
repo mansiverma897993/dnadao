@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "npm run app:dev",
     "test": "anchor test",
     "build:program": "anchor build",
     "build": "npm --prefix app run build",
