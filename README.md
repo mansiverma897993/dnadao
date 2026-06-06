@@ -1,4 +1,4 @@
-# 🧬 DNA DAO — Decentralized AI Governance Ecosystem
+# 🧬 DNA DAO : Decentralized AI Governance Ecosystem
 
 DNA DAO is a premium, high-fidelity decentralized autonomous organization platform powered by Solana smart contracts, AI-driven proposal engines, organic genetic member profiling, and a gorgeous glassmorphic fluid UI.
 
@@ -10,7 +10,7 @@ This platform bridges quantitative member personality profiles (DNA) with dynami
 DNA DAO implements a state-of-the-art **Ivory-Emerald Glassmorphic UI** featuring:
 * **Organic Gooey Metaball Background**: Custom SVG Gaussian blur and Color Matrix filter rendering fluid liquid spheres that morph, overlap, and merge organically like a liquid lava lamp behind the interface.
 * **Glassmorphic Panels**: High backdrop blurs (`16px-24px`) and translucent backings (`rgba(255,255,255,0.72)`) overlaying the gooey liquid core.
-* ** आउटफिट (Outfit) Typography**: Geometric structure with Outfit and Plus Jakarta Sans text formatting.
+* **Typography**: Geometric structure with Outfit and Plus Jakarta Sans text formatting.
 * **Pixel-Perfect Logo Recreation**: A beautiful vertical green-to-cyan gradient helix emblem featuring a 3D-depth overlapping strand cut.
 
 ---
