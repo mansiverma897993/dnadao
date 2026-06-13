@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "npm run app:dev",
+    "dev": "concurrently \"npm run server\" \"npm run app:dev\"",
+    "server": "npm --prefix server run dev",
     "test": "anchor test",
     "build:program": "anchor build",
     "build": "npm --prefix app run build",
@@ -17,8 +18,14 @@
     "@types/chai": "^4.3.17",
     "@types/mocha": "^10.0.7",
     "chai": "^4.5.0",
-    "mocha": "^10.7.3",
+    "concurrently": "^10.0.3",
+    "mocha": "^11.7.6",
     "ts-mocha": "^10.0.0",
     "typescript": "^5.5.4"
+  },
+  "overrides": {
+    "uuid": "^11.1.1",
+    "diff": "^5.2.0",
+    "serialize-javascript": "^7.0.5"
   }
 }

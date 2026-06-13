@@ -242,8 +242,171 @@ export function App() {
   const [recentVotes, setRecentVotes] = useState<Record<string, "yes" | "no">>({});
 
   // DNA Engine Selected Member State
+  const [members, setMembers] = useState<any[]>(COMMUNITY_MEMBERS);
   const [selectedMember, setSelectedMember] = useState(COMMUNITY_MEMBERS[0]);
   const [searchMemberQuery, setSearchMemberQuery] = useState("");
+
+  const API_BASE = "http://localhost:5000/api";
+
+  // Fetch initial proposals and members from MongoDB
+  const fetchProposals = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/proposals`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setMockProposals(data);
+          setSelectedChatProposalId(data[0].id);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch proposals from backend database, using local mock fallback.", e);
+    }
+  };
+
+  const fetchMembers = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/members`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setMembers(data);
+          setSelectedMember(data[0]);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch members from backend database, using local mock fallback.", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchProposals();
+    fetchMembers();
+  }, []);
+
+  // Community Chat states
+  const [selectedChatProposalId, setSelectedChatProposalId] = useState<string>("P-047");
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [newMessageText, setNewMessageText] = useState<string>("");
+
+  // User Auth States
+  const [user, setUser] = useState<{ username: string } | null>(() => {
+    const saved = localStorage.getItem("dnadao_user");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [authMode, setAuthMode] = useState<"login" | "register">("register");
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authUsername.trim() || !authPassword.trim()) {
+      setAuthError("All fields are required.");
+      return;
+    }
+    setBusy(true);
+    setAuthError("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: authUsername, password: authPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUser(data);
+        localStorage.setItem("dnadao_user", JSON.stringify(data));
+        setAuthUsername("");
+        setAuthPassword("");
+      } else {
+        setAuthError(data.error || "Login failed.");
+      }
+    } catch (err) {
+      setAuthError("Connection error. Is the server running?");
+    }
+    setBusy(false);
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authUsername.trim() || !authPassword.trim()) {
+      setAuthError("All fields are required.");
+      return;
+    }
+    setBusy(true);
+    setAuthError("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: authUsername, password: authPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUser(data);
+        localStorage.setItem("dnadao_user", JSON.stringify(data));
+        setAuthUsername("");
+        setAuthPassword("");
+      } else {
+        setAuthError(data.error || "Registration failed.");
+      }
+    } catch (err) {
+      setAuthError("Connection error. Is the server running?");
+    }
+    setBusy(false);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem("dnadao_user");
+  };
+
+  const fetchChatMessages = async (proposalId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/proposals/${proposalId}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages(data);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch chat messages.", e);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    if (!newMessageText.trim() || !selectedChatProposalId) return;
+    const senderName = user ? user.username : (wallet.publicKey ? wallet.publicKey.toBase58().substring(0, 6) + "..." + wallet.publicKey.toBase58().substring(38) : "Adit Kumar");
+    
+    try {
+      const res = await fetch(`${API_BASE}/proposals/${selectedChatProposalId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: senderName,
+          content: newMessageText
+        })
+      });
+      if (res.ok) {
+        const newMessage = await res.json();
+        setChatMessages(prev => [...prev, newMessage]);
+        setNewMessageText("");
+      }
+    } catch (e) {
+      console.warn("Failed to send message.", e);
+    }
+  };
+
+  // Poll for new messages every 3 seconds if activeTab is community-intel
+  useEffect(() => {
+    if (activeTab === "community-intel" && selectedChatProposalId) {
+      fetchChatMessages(selectedChatProposalId);
+      const interval = setInterval(() => {
+        fetchChatMessages(selectedChatProposalId);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, selectedChatProposalId]);
 
   // AI Proposal Generator input states
   const [ideaInput, setIdeaInput] = useState("");
@@ -266,6 +429,11 @@ export function App() {
   );
   const [debateAnalysis, setDebateAnalysis] = useState<any>(null);
   const [isAnalyzingDebate, setIsAnalyzingDebate] = useState(false);
+  const [selectedDebateProposalId, setSelectedDebateProposalId] = useState<string>("P-047");
+  const [debateMode, setDebateMode] = useState<"proposal" | "custom">("proposal");
+  const [debateNLPResult, setDebateNLPResult] = useState<any>(null);
+  const [debateError, setDebateError] = useState<string | null>(null);
+  const [currentDebateMessages, setCurrentDebateMessages] = useState<string[]>([]);
 
   // Future Impact Simulator states
   const [simCategory, setSimCategory] = useState("Treasury Allocation");
@@ -373,26 +541,43 @@ export function App() {
     }
 
     // Interactive fallback mode
-    const newMockProp = {
-      id: `P-0${mockProposals.length + 43}`,
-      category: categoryInput,
-      title: title,
-      description: desc,
-      creator: wallet.publicKey ? wallet.publicKey.toBase58().substring(0, 6) + "..." + wallet.publicKey.toBase58().substring(38) : "Adit Kumar",
-      votesYes: 1,
-      votesNo: 0,
-      status: "Active" as const,
-      closesIn: "6d 23h 59m",
-      reputationEffect: "+20 VP",
-      proposalIndex: mockProposals.length + 43,
-    };
-
-    setTimeout(() => {
-      setMockProposals([newMockProp, ...mockProposals]);
-      setStatus("Proposal submitted to DNA DAO Local Engine.");
-      setBusy(false);
-    }, 800);
-
+    try {
+      const response = await fetch(`${API_BASE}/proposals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description: desc,
+          category: categoryInput,
+          creator: user ? user.username : (wallet.publicKey ? wallet.publicKey.toBase58().substring(0, 6) + "..." + wallet.publicKey.toBase58().substring(38) : "Adit Kumar")
+        })
+      });
+      if (response.ok) {
+        const newProposal = await response.json();
+        setMockProposals(prev => [newProposal, ...prev]);
+        setStatus("Proposal submitted and stored in MongoDB.");
+      } else {
+        throw new Error("Backend save failed");
+      }
+    } catch (e) {
+      // Local memory fallback if server is down
+      const newMockProp = {
+        id: `P-0${mockProposals.length + 43}`,
+        category: categoryInput,
+        title: title,
+        description: desc,
+        creator: user ? user.username : (wallet.publicKey ? wallet.publicKey.toBase58().substring(0, 6) + "..." + wallet.publicKey.toBase58().substring(38) : "Adit Kumar"),
+        votesYes: 1,
+        votesNo: 0,
+        status: "Active" as const,
+        closesIn: "6d 23h 59m",
+        reputationEffect: "+20 VP",
+        proposalIndex: mockProposals.length + 43,
+      };
+      setMockProposals(prev => [newMockProp, ...prev]);
+      setStatus("Proposal submitted locally (Backend Offline).");
+    }
+    setBusy(false);
     return true;
   }
 
@@ -432,10 +617,27 @@ export function App() {
     }
 
     // Mock voting execution
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${API_BASE}/proposals/${proposalId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approve,
+          votingPower: 1247
+        })
+      });
+      if (response.ok) {
+        const updatedProposal = await response.json();
+        setMockProposals(prev => prev.map(p => p.id === proposalId ? updatedProposal : p));
+        setStatus(`Vote registered in MongoDB! Added 1,247 VP (${approve ? "YES" : "NO"}) to proposal ${proposalId}.`);
+      } else {
+        throw new Error("Backend vote registration failed");
+      }
+    } catch (e) {
+      // Local fallback
       setMockProposals(prev => prev.map(p => {
         if (p.id === proposalId) {
-          const addedVotes = 1247; // Simulating voting power of user
+          const addedVotes = 1247;
           return {
             ...p,
             votesYes: approve ? p.votesYes + addedVotes : p.votesYes,
@@ -444,10 +646,10 @@ export function App() {
         }
         return p;
       }));
-      setRecentVotes(prev => ({ ...prev, [proposalId]: approve ? "yes" : "no" }));
-      setStatus(`Voted successfully! Added 1,247 VP (${approve ? "YES" : "NO"}) to proposal ${proposalId}.`);
-      setBusy(false);
-    }, 600);
+      setStatus(`Voted successfully in local state (Backend Offline).`);
+    }
+    setRecentVotes(prev => ({ ...prev, [proposalId]: approve ? "yes" : "no" }));
+    setBusy(false);
   }
 
   // Simulated AI Proposal Generator
@@ -546,27 +748,115 @@ export function App() {
     }, 900);
   };
 
-  // Simulated Debate AI Analyzer
-  const analyzeDebate = () => {
+  // Fallback discussion threads for each proposal
+  const FALLBACK_DEBATE_MESSAGES: Record<string, string[]> = {
+    "P-047": [
+      "I really love this fee restructure! 60% directly to stakers is huge.",
+      "Agreed, this will encourage long term locking. Beautiful design.",
+      "Wait, 20% to AI fine-tuning seems high. Do we need that much?",
+      "Model fine-tuning is what makes our governance DNA engine unique, so I support it.",
+      "Let's vote Yes on this. Long term value is clear."
+    ],
+    "P-046": [
+      "A 150k grant is a bit high for Season 1. We should be conservative.",
+      "But open source developer plugins will bring so much integration.",
+      "Let's start with a smaller pilot program, say 50k, to test viability.",
+      "Agree, 150k is too risky right now. We need strict milestones.",
+      "I oppose the current draft. Needs more structure."
+    ],
+    "P-045": [
+      "More security experts on the multi-sig is exactly what we need.",
+      "Who are the proposed signers? We need complete transparency.",
+      "I support adding reputable security professionals. 3 is a good number.",
+      "Agreed, safety first. Our treasury is growing fast."
+    ],
+    "P-044": [
+      "Reputation score allocation makes so much sense compared to just token holdings.",
+      "Finally, active contributors get rewarded fairly!",
+      "This is a great proposal, fully supportive.",
+      "Love the Epoch 13 metrics used here."
+    ],
+    "P-043": [
+      "Model v2.1 benchmark matching looks very advanced.",
+      "Can we run a local simulation first?",
+      "I'm neutral on this. The upgrade seems nice but not urgent.",
+      "AI proposal generation saves a lot of drafting time, let's do it."
+    ]
+  };
+
+  const DEFAULT_FALLBACK_MESSAGES = [
+    "This is a very interesting proposal. Let's discuss details.",
+    "I support this initiative. It aligns well with the DAO's goals.",
+    "We need to check the budget allocation. Is it too high?",
+    "Let's vote Yes. The community benefits are clear."
+  ];
+
+  const loadDebateMessages = async (proposalId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/proposals/${proposalId}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const contents = data.map((m: any) => m.content);
+          setCurrentDebateMessages(contents);
+          return contents;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch messages for debate analysis.", e);
+    }
+    const fallback = FALLBACK_DEBATE_MESSAGES[proposalId] || DEFAULT_FALLBACK_MESSAGES;
+    setCurrentDebateMessages(fallback);
+    return fallback;
+  };
+
+  useEffect(() => {
+    if (activeTab === "debate-ai" && debateMode === "proposal" && selectedDebateProposalId) {
+      loadDebateMessages(selectedDebateProposalId);
+    }
+  }, [activeTab, selectedDebateProposalId, debateMode]);
+
+  // Real Deployed NLP API Debate Analyzer
+  const analyzeDebate = async () => {
     setIsAnalyzingDebate(true);
-    setTimeout(() => {
-      setDebateAnalysis({
-        consensusScore: "78/100",
-        consensusLevel: "Strong Consensus on Phase 1",
-        argumentsFor: [
-          "Low cost phase 1 reduces financial exposure (20K vs 400K).",
-          "Test pool validates sub-protocol performance in real-time.",
-          "Establishes a foundation for automated fee collection."
-        ],
-        argumentsAgainst: [
-          "Audit costs must still be addressed before main deployment.",
-          "Treasury balance requires careful allocation; 20K is 5% of reserves."
-        ],
-        recom: "Highly recommended to initiate a Phase 1 proposal on-chain with a budget limit of 20K. This aligns with 92% of community feedback.",
-        sentiment: "Constructive (84%)"
-      });
+    setDebateError(null);
+    setDebateNLPResult(null);
+
+    let messagesToAnalyze: string[] = [];
+    if (debateMode === "proposal") {
+      messagesToAnalyze = await loadDebateMessages(selectedDebateProposalId);
+    } else {
+      messagesToAnalyze = debateInput
+        .split("\n")
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+    }
+
+    if (messagesToAnalyze.length === 0) {
+      setDebateError("No messages found to analyze.");
       setIsAnalyzingDebate(false);
-    }, 1200);
+      return;
+    }
+
+    try {
+      const response = await fetch("https://nlp-dao-5.onrender.com/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat: messagesToAnalyze })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API returned status ${response.status}`);
+      }
+
+      const data = await response.json();
+      setDebateNLPResult(data);
+    } catch (err: any) {
+      console.error("NLP analysis failed:", err);
+      setDebateError(err.message || "Failed to connect to the deployed NLP API.");
+    } finally {
+      setIsAnalyzingDebate(false);
+    }
   };
 
   // Simulated Future Impact Simulator
@@ -607,11 +897,11 @@ export function App() {
 
   // Filter members based on search
   const filteredMembers = useMemo(() => {
-    return COMMUNITY_MEMBERS.filter(m => 
+    return members.filter(m => 
       m.name.toLowerCase().includes(searchMemberQuery.toLowerCase()) ||
       m.archetype.toLowerCase().includes(searchMemberQuery.toLowerCase())
     );
-  }, [searchMemberQuery]);
+  }, [searchMemberQuery, members]);
 
   // Helper to render beautiful DNA profile radar points in SVG
   const radarPoints = useMemo(() => {
@@ -650,6 +940,82 @@ export function App() {
 
   return (
     <div className="dna-app-container">
+      {/* Auth Overlay if not logged in */}
+      {!user && (
+        <div className="auth-overlay">
+          <div className="auth-card">
+            <div className="auth-logo-wrapper">
+              <svg width="48" height="48" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="logo-grad-auth" x1="0%" y1="100%" x2="0%" y2="0%">
+                    <stop offset="0%" stopColor="#85E347" />
+                    <stop offset="50%" stopColor="#10B981" />
+                    <stop offset="100%" stopColor="#06B6D4" />
+                  </linearGradient>
+                </defs>
+                <path d="M 25.4,16 A 42,42 0 0,0 25.4,84" stroke="url(#logo-grad-auth)" strokeWidth="8.5" strokeLinecap="round" />
+                <path d="M 74.6,16 A 42,42 0 0,1 74.6,84" stroke="url(#logo-grad-auth)" strokeWidth="8.5" strokeLinecap="round" />
+                <path d="M 38,5 L 38,24 C 38,36 44,44 50,50 C 56,56 62,64 62,76 L 62,95" stroke="url(#logo-grad-auth)" strokeWidth="8.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M 62,5 L 62,24 C 62,36 56,44 50,50" stroke="url(#logo-grad-auth)" strokeWidth="8.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M 44.5,55.5 C 41.5,58.5 38,64 38,76 L 38,95" stroke="url(#logo-grad-auth)" strokeWidth="8.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            
+            <h2>{authMode === "register" ? "Create Account" : "Access DNA DAO"}</h2>
+            <p className="auth-subtitle">
+              {authMode === "register" 
+                ? "Register a new profile to participate in intelligence governance and proposal discussion."
+                : "Log in with your credentials to access the decentralized dashboard."}
+            </p>
+
+            {authError && <div className="auth-error-banner">{authError}</div>}
+
+            <form className="auth-form" onSubmit={authMode === "register" ? handleRegister : handleLogin}>
+              <div className="auth-form-group">
+                <label>USERNAME</label>
+                <input 
+                  type="text" 
+                  className="auth-input-field"
+                  placeholder="Enter username"
+                  value={authUsername}
+                  onChange={(e) => setAuthUsername(e.target.value)}
+                  required 
+                />
+              </div>
+
+              <div className="auth-form-group">
+                <label>PASSWORD</label>
+                <input 
+                  type="password" 
+                  className="auth-input-field"
+                  placeholder="Enter password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required 
+                />
+              </div>
+
+              <button type="submit" disabled={busy} className="auth-submit-btn">
+                <span>{authMode === "register" ? "Create Account" : "Log In"}</span>
+              </button>
+            </form>
+
+            <div className="auth-switch-mode">
+              {authMode === "register" ? (
+                <>
+                  Already have an account? 
+                  <span className="auth-switch-link" onClick={() => { setAuthMode("login"); setAuthError(""); }}>Log In</span>
+                </>
+              ) : (
+                <>
+                  Don't have an account? 
+                  <span className="auth-switch-link" onClick={() => { setAuthMode("register"); setAuthError(""); }}>Create Account</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Animated fluid gooey mesh background */}
       <div className="animated-bg-mesh">
         <div className="blobs-container">
@@ -732,8 +1098,8 @@ export function App() {
               <span className="badge-usp">M-02</span>
             </button>
             <button className={`nav-link ${activeTab === "community-intel" ? "active" : ""}`} onClick={() => setActiveTab("community-intel")}>
-              <Activity size={18} />
-              <span>Community Intel</span>
+              <MessageSquare size={18} />
+              <span>Community Chat</span>
             </button>
             <button className={`nav-link ${activeTab === "debate-ai" ? "active" : ""}`} onClick={() => setActiveTab("debate-ai")}>
               <MessageSquare size={18} />
@@ -774,7 +1140,7 @@ export function App() {
               {activeTab === "ai-generator" && "AI Proposal Generator — M-01"}
               {activeTab === "active-votes" && "Reputation Voting + Smart Contracts — M-06 & M-07"}
               {activeTab === "dna-profiles" && "Governance DNA Engine — M-02"}
-              {activeTab === "community-intel" && "Community Intelligence Feed — M-03"}
+              {activeTab === "community-intel" && "DAO Community Discussion Room"}
               {activeTab === "debate-ai" && "AI Debate Summarizer — M-04"}
               {activeTab === "impact-simulator" && "Future Impact Simulator — M-05"}
               {activeTab === "reputation" && "On-Chain Contributor Reputation"}
@@ -784,6 +1150,14 @@ export function App() {
           </div>
 
           <div className="header-actions">
+            {user && (
+              <div className="flex-center" style={{ marginRight: "16px" }}>
+                <span className="bold text-emerald" style={{ fontSize: "0.85rem", marginRight: "8px" }}>
+                  Logged in: {user.username}
+                </span>
+                <button className="logout-nav-btn" onClick={handleLogout}>Log Out</button>
+              </div>
+            )}
             <div className="epoch-pill">
               <span className="epoch-dot" />
               <span>Epoch 14 Active</span>
@@ -930,10 +1304,10 @@ export function App() {
                     </div>
                   </div>
                   <div className="module-card clickable" onClick={() => setActiveTab("community-intel")}>
-                    <div className="module-icon bg-light-green"><Activity className="green-icon" size={18} /></div>
+                    <div className="module-icon bg-light-green"><MessageSquare className="green-icon" size={18} /></div>
                     <div>
-                      <div className="module-title">Community Intel</div>
-                      <div className="module-meta">M-03 · USP</div>
+                      <div className="module-title">Community Chat</div>
+                      <div className="module-meta">M-03 · Discussion</div>
                     </div>
                   </div>
                   <div className="module-card clickable" onClick={() => setActiveTab("debate-ai")}>
@@ -1513,7 +1887,7 @@ export function App() {
                   <p className="meta-desc">Voting Power · Contribution · Reputation · Participation</p>
                   
                   <div className="leaderboard-items mt-1">
-                    {COMMUNITY_MEMBERS.slice(0, 5).map((m, i) => (
+                    {members.slice(0, 5).map((m, i) => (
                       <div className="lead-row" key={m.name}>
                         <div className="flex-center">
                           <span className="lead-index">{i + 1}</span>
@@ -1558,154 +1932,425 @@ export function App() {
             </div>
           )}
 
-          {/* TAB 6: COMMUNITY INTEL */}
+          {/* TAB 6: COMMUNITY CHAT */}
           {activeTab === "community-intel" && (
-            <div className="community-intel-layout">
-              <div className="card-full">
-                <h2>Governance DNA Engine M-03 Community Intelligence</h2>
-                <p className="subtitle">Real-time aggregate data feed from governance channels, social logs, and developer repositories.</p>
-                
-                <div className="intel-grids mt-2">
-                  <div className="intel-card">
-                    <div className="intel-card-hdr">
-                      <Brain className="green-icon" size={24} />
-                      <h3>Sentiment Analysis</h3>
-                    </div>
-                    <div className="sentiment-stat mt-1">
-                      <span className="sentiment-val">84% Positive</span>
-                      <span className="sentiment-sub text-emerald">↑ 3.2% vs last epoch</span>
-                    </div>
-                    <p className="intel-desc mt-1">General mood is highly optimistic following the success of Developer Grants Season 3. High engagement in local and global Discord debate rooms regarding modular upgrades.</p>
-                  </div>
-
-                  <div className="intel-card">
-                    <div className="intel-card-hdr">
-                      <Flame className="orange-icon" size={24} />
-                      <h3>Key Conversation Drivers</h3>
-                    </div>
-                    <div className="drivers-list mt-1">
-                      <div className="driver-row">
-                        <span className="bold">1. Fee Optimization Model</span>
-                        <span className="driver-badge bg-light-orange">High Interest</span>
+            <div className="community-chat-layout">
+              {/* Left Sidebar: Select Proposal */}
+              <div className="chat-proposals-sidebar">
+                <span className="members-count-lbl">DISCUSS A PROPOSAL</span>
+                <div className="chat-proposals-list">
+                  {mockProposals.map((p) => (
+                    <div 
+                      key={p.id} 
+                      className={`chat-proposal-item ${selectedChatProposalId === p.id ? "selected" : ""}`}
+                      onClick={() => setSelectedChatProposalId(p.id)}
+                    >
+                      <div className="chat-proposal-meta">
+                        <span>{p.id}</span>
+                        <span className={`row-status badge-${p.status.toLowerCase().replace(" ", "")}`}>{p.status}</span>
                       </div>
-                      <div className="driver-row">
-                        <span className="bold">2. Security Audit Outsource</span>
-                        <span className="driver-badge bg-light-purple">Important</span>
-                      </div>
-                      <div className="driver-row">
-                        <span className="bold">3. Multi-chain Proposal Gen</span>
-                        <span className="driver-badge bg-light-green">Emerging</span>
-                      </div>
+                      <div className="chat-proposal-title truncate">{p.title}</div>
                     </div>
-                  </div>
+                  ))}
                 </div>
+              </div>
+
+              {/* Right Panel: Chat Window */}
+              <div className="chat-window">
+                {(() => {
+                  const selectedProp = mockProposals.find(p => p.id === selectedChatProposalId);
+                  if (!selectedProp) {
+                    return (
+                      <div className="chat-empty-state">
+                        <MessageSquare size={48} className="muted-icon" />
+                        <h3>Select a proposal to start discussing</h3>
+                      </div>
+                    );
+                  }
+
+                  const userSender = wallet.publicKey ? wallet.publicKey.toBase58().substring(0, 6) + "..." + wallet.publicKey.toBase58().substring(38) : "Adit Kumar";
+
+                  return (
+                    <>
+                      <div className="chat-header">
+                        <div className="chat-header-title">{selectedProp.title}</div>
+                        <div className="chat-header-subtitle">Discussing proposal {selectedProp.id} · Category: {selectedProp.category}</div>
+                      </div>
+
+                      <div className="chat-messages-container">
+                        {chatMessages.length === 0 ? (
+                          <div className="chat-empty-state">
+                            <Brain size={32} className="muted-icon" style={{ opacity: 0.5 }} />
+                            <p className="mt-05">No messages in this discussion thread yet. Be the first to say something!</p>
+                          </div>
+                        ) : (
+                          chatMessages.map((msg, idx) => {
+                            const isOutgoing = msg.sender === userSender;
+                            return (
+                              <div 
+                                key={msg._id || idx} 
+                                className={`chat-message-bubble ${isOutgoing ? "outgoing" : "incoming"}`}
+                              >
+                                <span className="chat-msg-sender">{msg.sender}</span>
+                                <span>{msg.content}</span>
+                                <span className="chat-msg-time">
+                                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="chat-input-area">
+                        <input 
+                          type="text" 
+                          placeholder="Type your message about this proposal..." 
+                          className="chat-text-input"
+                          value={newMessageText}
+                          onChange={(e) => setNewMessageText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              sendChatMessage();
+                            }
+                          }}
+                        />
+                        <button className="chat-send-btn" onClick={sendChatMessage}>
+                          <Send size={14} />
+                          <span>Send</span>
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
 
           {/* TAB 7: DEBATE AI */}
           {activeTab === "debate-ai" && (
-            <div className="debate-ai-layout">
-              <div className="ai-gen-input-panel">
-                <div className="ai-powered-tag">
-                  <Brain size={14} className="purple-icon" />
-                  <span>AI Debate Summarizer — M-04</span>
+            <div className="debate-ai-layout" style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", alignItems: "stretch", minHeight: "580px" }}>
+              {/* Left Sidebar: Select Proposal or Custom Mode */}
+              <div className="chat-proposals-sidebar" style={{ display: "flex", flexDirection: "column", height: "auto" }}>
+                <span className="members-count-lbl">SELECT DAO / PROPOSAL DEBATE</span>
+                
+                {/* Mode Toggles */}
+                <div className="debate-mode-toggles mt-1 flex" style={{ gap: "8px", marginBottom: "12px" }}>
+                  <button 
+                    className={`btn-vote-no ${debateMode === "proposal" ? "active-mode-btn" : ""}`} 
+                    style={{ flex: 1, padding: "8px 12px", fontSize: "0.78rem" }}
+                    onClick={() => {
+                      setDebateMode("proposal");
+                      setDebateNLPResult(null);
+                      setDebateError(null);
+                    }}
+                  >
+                    DAO Proposals
+                  </button>
+                  <button 
+                    className={`btn-vote-no ${debateMode === "custom" ? "active-mode-btn" : ""}`} 
+                    style={{ flex: 1, padding: "8px 12px", fontSize: "0.78rem" }}
+                    onClick={() => {
+                      setDebateMode("custom");
+                      setDebateNLPResult(null);
+                      setDebateError(null);
+                    }}
+                  >
+                    Custom Input
+                  </button>
                 </div>
-                <h2>Aggregate discussion threads into unified insights</h2>
-                <p className="subtitle">Paste community discussion transcripts or social chat transcripts below to extract arguments, consensus levels, and risk parameters.</p>
 
-                <div className="form-group mt-2">
-                  <label>COMMUNITY THREAD TRANSCRIPT</label>
-                  <textarea 
-                    value={debateInput}
-                    onChange={(e) => setDebateInput(e.target.value)}
-                    rows={8}
-                  />
-                </div>
-
-                <button 
-                  onClick={analyzeDebate} 
-                  disabled={isAnalyzingDebate || !debateInput.trim()} 
-                  className="btn-ai-generate width-100 flex-center"
-                >
-                  {isAnalyzingDebate ? (
-                    <>
-                      <RefreshCw className="spinner-icon" size={16} />
-                      <span>Summarizing discussions...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={16} />
-                      <span>Analyze Debate & Calculate Consensus</span>
-                    </>
-                  )}
-                </button>
+                {debateMode === "proposal" ? (
+                  <div className="chat-proposals-list" style={{ flexGrow: 1, maxHeight: "500px", overflowY: "auto" }}>
+                    {mockProposals.map((p) => (
+                      <div 
+                        key={p.id} 
+                        className={`chat-proposal-item ${selectedDebateProposalId === p.id ? "selected" : ""}`}
+                        onClick={() => {
+                          setSelectedDebateProposalId(p.id);
+                          setDebateNLPResult(null);
+                          setDebateError(null);
+                        }}
+                      >
+                        <div className="chat-proposal-meta">
+                          <span>{p.id}</span>
+                          <span className={`row-status badge-${p.status.toLowerCase().replace(" ", "")}`}>{p.status}</span>
+                        </div>
+                        <div className="chat-proposal-title truncate">{p.title}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="custom-input-sidebar-info flex-center" style={{ flexGrow: 1, padding: "16px", textAlign: "center", color: "var(--text-muted)", fontSize: "0.8rem", flexDirection: "column", justifyContent: "center" }}>
+                    <Brain size={24} style={{ marginBottom: "12px", opacity: 0.5 }} />
+                    <span>Paste custom conversation threads in the central panel to analyze consensus.</span>
+                  </div>
+                )}
               </div>
 
-              <div className="ai-gen-output-panel">
-                {isAnalyzingDebate && (
-                  <div className="ai-loading-container">
-                    <div className="radar-spinner" />
-                    <p className="mt-2">Evaluating thread sentiment, mapping user alignment indices, and calculating mathematical consensus metrics...</p>
+              {/* Right Panel: Active Analysis Area */}
+              <div className="debate-analysis-panel" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                
+                {/* Inputs and Preview Section */}
+                <div className="ai-gen-input-panel" style={{ width: "100%" }}>
+                  <div className="ai-powered-tag" style={{ backgroundColor: "#f3e8ff", color: "#7c3aed" }}>
+                    <Sparkles size={14} className="purple-icon" />
+                    <span>NLP Consensus Engine — M-04</span>
                   </div>
-                )}
 
-                {!isAnalyzingDebate && !debateAnalysis && (
-                  <div className="ai-empty-state">
-                    <MessageSquare size={48} className="muted-icon" />
-                    <h3>Awaiting Discussion Feed</h3>
-                    <p>Provide a thread transcript on the left to extract the consensus index, main supporting/opposing points, and actionable deployment advice.</p>
-                  </div>
-                )}
+                  {debateMode === "proposal" ? (
+                    <>
+                      {(() => {
+                        const selectedProp = mockProposals.find(p => p.id === selectedDebateProposalId);
+                        if (!selectedProp) return null;
+                        return (
+                          <div style={{ marginBottom: "20px" }}>
+                            <h2 style={{ fontSize: "1.3rem", marginBottom: "6px" }}>{selectedProp.title}</h2>
+                            <p className="subtitle" style={{ marginBottom: "12px" }}>
+                              {selectedProp.description}
+                            </p>
+                            
+                            <div className="proposal-section">
+                              <label className="section-hdr">COMMUNITY DISCUSSION THREAD (PREVIEW)</label>
+                              <div style={{ 
+                                backgroundColor: "rgba(243, 244, 246, 0.5)", 
+                                border: "1px solid var(--border-color)", 
+                                borderRadius: "10px", 
+                                padding: "14px", 
+                                maxHeight: "150px", 
+                                overflowY: "auto",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "8px"
+                              }}>
+                                {currentDebateMessages.length === 0 ? (
+                                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                                    No community discussions found for this proposal. Fallback discussion will be used.
+                                  </span>
+                                ) : (
+                                  currentDebateMessages.map((msg, i) => (
+                                    <div key={i} style={{ display: "flex", gap: "8px", fontSize: "0.82rem" }}>
+                                      <span className="bold text-emerald" style={{ whiteSpace: "nowrap" }}>
+                                        Participant {i + 1}:
+                                      </span>
+                                      <span style={{ color: "var(--text-secondary)" }}>{msg}</span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <div className="form-group mt-2">
+                      <label>PASTE COMMUNITY THREAD TRANSCRIPT (ONE MESSAGE PER LINE)</label>
+                      <textarea 
+                        value={debateInput}
+                        onChange={(e) => setDebateInput(e.target.value)}
+                        placeholder={"User A: I support this budget.\nUser B: Too high! I oppose it.\nUser C: Let's do half budget."}
+                        rows={6}
+                        style={{ minHeight: "120px" }}
+                      />
+                    </div>
+                  )}
 
-                {!isAnalyzingDebate && debateAnalysis && (
-                  <div className="debate-analysis-results">
-                    <div className="generated-success-banner flex-between">
-                      <div className="flex-center green">
-                        <ShieldCheck size={16} />
-                        <span className="bold ml-05">Analysis Complete</span>
+                  <button 
+                    onClick={analyzeDebate} 
+                    disabled={isAnalyzingDebate || (debateMode === "custom" && !debateInput.trim())} 
+                    className="btn-ai-generate width-100 flex-center"
+                  >
+                    {isAnalyzingDebate ? (
+                      <>
+                        <RefreshCw className="spinner-icon" size={16} />
+                        <span>Querying Deployed NLP Engine...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={16} />
+                        <span>Run Deployed NLP Sentiment & Consensus Analysis</span>
+                      </>
+                    )}
+                  </button>
+
+                  {debateError && (
+                    <div className="auth-error-banner mt-1" style={{ width: "100%", boxSizing: "border-box" }}>
+                      Error: {debateError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dashboard Results Section */}
+                <div className="ai-gen-output-panel" style={{ width: "100%", minHeight: debateNLPResult ? "auto" : "200px" }}>
+                  {isAnalyzingDebate && (
+                    <div className="ai-loading-container" style={{ margin: "auto", textAlign: "center", padding: "40px", width: "100%" }}>
+                      <div className="radar-spinner" style={{ margin: "0 auto 16px" }} />
+                      <p className="bold mt-2" style={{ color: "var(--text-primary)" }}>Analyzing Discussion with Deployed MLP Model...</p>
+                      <p className="mt-05 font-small" style={{ color: "var(--text-muted)" }}>
+                        Running sentiment extraction, parsing supportive vs opposing nodes, and computing mathematical consensus metrics.
+                      </p>
+                    </div>
+                  )}
+
+                  {!isAnalyzingDebate && !debateNLPResult && (
+                    <div className="ai-empty-state">
+                      <Brain size={48} className="muted-icon" />
+                      <h3>Consensus Dashboard Awaiting Input</h3>
+                      <p>
+                        Select a proposal from the sidebar or provide a custom thread transcript, then click the analyze button to run the deployed sentiment classification model.
+                      </p>
+                    </div>
+                  )}
+
+                  {!isAnalyzingDebate && debateNLPResult && (
+                    <div className="debate-analysis-results" style={{ padding: "28px", width: "100%" }}>
+                      <div className="generated-success-banner flex-between" style={{ marginBottom: "24px" }}>
+                        <div className="flex-center green">
+                          <CheckCircle size={16} />
+                          <span className="bold ml-05">Deployed MLP Analysis Active</span>
+                        </div>
+                        <span className="sentiment-tag-h" style={{ 
+                          color: debateNLPResult.overall_sentiment === "Positive" ? "var(--accent-green)" : 
+                                 debateNLPResult.overall_sentiment === "Negative" ? "#ef4444" : "var(--text-muted)",
+                          fontWeight: 800,
+                          fontSize: "0.8rem",
+                          textTransform: "uppercase"
+                        }}>
+                          Overall Sentiment: {debateNLPResult.overall_sentiment}
+                        </span>
                       </div>
-                      <span className="sentiment-tag-h">Sentiment: {debateAnalysis.sentiment}</span>
-                    </div>
 
-                    <div className="consensus-metrics-row mt-2 flex-between">
-                      <div className="metric-box width-50 mr-1">
-                        <span className="lbl">CONSENSUS SCORE</span>
-                        <span className="val green">{debateAnalysis.consensusScore}</span>
+                      {/* Premium Stats Grid */}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
+                        <div className="metric-box">
+                          <span className="lbl">CONSENSUS LEVEL</span>
+                          <span className="val" style={{ 
+                            color: debateNLPResult.consensus.toLowerCase().includes("support") ? "var(--accent-green)" : 
+                                   debateNLPResult.consensus.toLowerCase().includes("oppose") ? "#ef4444" : "#eab308"
+                          }}>
+                            {debateNLPResult.consensus}
+                          </span>
+                        </div>
+                        <div className="metric-box">
+                          <span className="lbl">SUPPORT RATE</span>
+                          <span className="val text-emerald">{(debateNLPResult.support_rate).toFixed(1)}%</span>
+                        </div>
+                        <div className="metric-box">
+                          <span className="lbl">MODEL CONFIDENCE</span>
+                          <span className="val text-purple">{(debateNLPResult.confidence * 100).toFixed(1)}%</span>
+                        </div>
                       </div>
-                      <div className="metric-box width-50 ml-1">
-                        <span className="lbl">ALIGNMENT INDEX</span>
-                        <span className="val green">{debateAnalysis.consensusLevel}</span>
+
+                      {/* Tricolor Sentiment Proportion Bar Chart */}
+                      <div style={{ backgroundColor: "var(--bg-main)", padding: "20px", borderRadius: "14px", marginBottom: "24px" }}>
+                        <div className="flex-between" style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "8px" }}>
+                          <span>SENTIMENT VOLUME SPLIT</span>
+                          <span style={{ color: "var(--text-muted)" }}>{debateNLPResult.total_messages} messages analyzed</span>
+                        </div>
+                        
+                        {/* Horizontal tricolor bar */}
+                        <div style={{ 
+                          height: "12px", 
+                          borderRadius: "99px", 
+                          overflow: "hidden", 
+                          display: "flex", 
+                          width: "100%",
+                          backgroundColor: "#eae6dc" 
+                        }}>
+                          {(() => {
+                            const supportive = debateNLPResult.metrics.supportive;
+                            const opposing = debateNLPResult.metrics.opposing;
+                            const neutral = debateNLPResult.metrics.neutral_mixed;
+                            const total = Math.max(1, supportive + opposing + neutral);
+
+                            const sPct = (supportive / total) * 100;
+                            const oPct = (opposing / total) * 100;
+                            const nPct = (neutral / total) * 100;
+
+                            return (
+                              <>
+                                {sPct > 0 && <div style={{ width: `${sPct}%`, backgroundColor: "var(--accent-green)" }} title={`Supportive: ${supportive}`} />}
+                                {nPct > 0 && <div style={{ width: `${nPct}%`, backgroundColor: "#9ca3af" }} title={`Neutral/Mixed: ${neutral}`} />}
+                                {oPct > 0 && <div style={{ width: `${oPct}%`, backgroundColor: "#f87171" }} title={`Opposing: ${opposing}`} />}
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Legend */}
+                        <div className="flex" style={{ gap: "16px", marginTop: "12px", fontSize: "0.75rem", fontWeight: 600 }}>
+                          <div className="flex-center">
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "var(--accent-green)", marginRight: "6px" }} />
+                            <span>Supportive: {debateNLPResult.metrics.supportive}</span>
+                          </div>
+                          <div className="flex-center">
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#9ca3af", marginRight: "6px" }} />
+                            <span>Neutral/Mixed: {debateNLPResult.metrics.neutral_mixed}</span>
+                          </div>
+                          <div className="flex-center">
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#f87171", marginRight: "6px" }} />
+                            <span>Opposing: {debateNLPResult.metrics.opposing}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Keyword Tag Clouds */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
+                        <div style={{ border: "1px solid var(--border-color)", padding: "16px", borderRadius: "14px", backgroundColor: "#ffffff" }}>
+                          <label className="section-hdr text-emerald" style={{ marginBottom: "10px" }}>KEY SUPPORTIVE SIGNALS</label>
+                          <div className="flex" style={{ flexWrap: "wrap", gap: "8px" }}>
+                            {debateNLPResult.words.positive.length === 0 ? (
+                              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>None detected</span>
+                            ) : (
+                              debateNLPResult.words.positive.map((word: string, i: number) => (
+                                <span key={i} className="cat-badge" style={{ backgroundColor: "var(--bg-green-light)", color: "var(--accent-green)", fontSize: "0.72rem" }}>
+                                  {word}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ border: "1px solid var(--border-color)", padding: "16px", borderRadius: "14px", backgroundColor: "#ffffff" }}>
+                          <label className="section-hdr text-orange" style={{ marginBottom: "10px" }}>KEY OPPOSING SIGNALS</label>
+                          <div className="flex" style={{ flexWrap: "wrap", gap: "8px" }}>
+                            {debateNLPResult.words.negative.length === 0 ? (
+                              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>None detected</span>
+                            ) : (
+                              debateNLPResult.words.negative.map((word: string, i: number) => (
+                                <span key={i} className="cat-badge" style={{ backgroundColor: "#fef2f2", color: "#ef4444", fontSize: "0.72rem" }}>
+                                  {word}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Deployment Advice */}
+                      <div className="ai-dna-insights-panel" style={{ backgroundColor: "#faf5ff", borderColor: "#f3e8ff", borderRadius: "14px", padding: "20px" }}>
+                        <div className="insights-header" style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                          <Sparkles size={16} className="purple-icon" />
+                          <h3 style={{ color: "#6b21a8", fontSize: "1rem", fontWeight: 700 }}>Decentralized Consensus Recommendation</h3>
+                        </div>
+                        <p className="mt-05 font-small" style={{ color: "#581c87", lineHeight: 1.45, fontSize: "0.88rem" }}>
+                          {(() => {
+                            const rate = debateNLPResult.support_rate;
+                            const consensus = debateNLPResult.consensus;
+                            if (rate >= 75) {
+                              return `Excellent alignment observed! The community shows high consensus (${consensus}) with a support rate of ${rate.toFixed(1)}%. It is highly recommended to proceed directly to an on-chain reputation vote, as this draft has met the required interest threshold.`;
+                            } else if (rate >= 50) {
+                              return `Moderate consensus (${consensus}) observed. The support rate is ${rate.toFixed(1)}%, which shows general interest but highlights lingering concerns about key parameters (e.g. budget or timeline). Suggest launching a community poll or hosting a Discord AMA to refine the draft before locking the proposal on-chain.`;
+                            } else {
+                              return `Low consensus (${consensus}) observed. The support rate is only ${rate.toFixed(1)}%. There are significant opposing viewpoints regarding the feasibility of this proposal. It is strongly recommended to table this initiative, or initiate a major rewrite of the problem statement and solution variables in the AI Generator tab.`;
+                            }
+                          })()}
+                        </p>
                       </div>
                     </div>
-
-                    <div className="proposal-section mt-2">
-                      <label className="section-hdr text-emerald">MAIN ARGUMENTS FOR</label>
-                      <ul className="kpis-ul">
-                        {debateAnalysis.argumentsFor.map((arg: string, i: number) => (
-                          <li key={i}>{arg}</li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="proposal-section">
-                      <label className="section-hdr text-orange">MAIN ARGUMENTS AGAINST</label>
-                      <ul className="kpis-ul">
-                        {debateAnalysis.argumentsAgainst.map((arg: string, i: number) => (
-                          <li key={i}>{arg}</li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="ai-dna-insights-panel mt-2">
-                      <div className="insights-header">
-                        <Sparkles size={16} className="purple-icon" />
-                        <h3>Decentralized Deployment Recommendation</h3>
-                      </div>
-                      <p className="mt-05 font-small">{debateAnalysis.recom}</p>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           )}
